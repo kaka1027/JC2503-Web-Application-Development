@@ -1,0 +1,30 @@
+nav {
+  background: #222;
+  padding: 10px;
+}
+nav a {
+  color: white;
+  margin: 0 10px;
+  text-decoration: none;
+}
+#gameGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 80px);
+  gap: 5px;
+  margin: 20px 0;
+}
+.grid-cell {
+  width: 80px;
+  height: 80px;
+  border: 1px solid #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+#currentBlock {
+  font-size: 20px;
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid red;
+}
