@@ -15,7 +15,73 @@
         <input id="nameInput" placeholder="Please enter your name.">
         <button onclick="joinGame()">Join the Game</button>
 
-        
+        <h3>Current Turn: <span id="currentTurn"></span></h3>
+        <div id="message"></div>
+        <div id="scoreboard"></div>
+        <div id="gameGrid"></div>
+        <div id="currentBlock"></div>
+        <script src="/socket.io/socket.io.js"></script>
+
+        <script>
+            const socket = io();
+            let playerName = "";
+            
+            function joinGame(){
+                playerName = document.getElementByld('namelnput').value;
+                if(!playerName) return;
+                socket.emit('join',playerName);
+                socket.emit('requestTurn');
+            }
+
+            function renderGrid(grid){
+                const container = document.getElementById('gameGrid');
+                container.innerHTML = '';
+
+                for (let i = 0; i < 16; i++){
+                    const cell = document.createElement('div');
+                    cell.className = 'grid-cell';
+                    cell.dataset.index = i;
+
+                    if (grid[i]){
+                        cell.style.backgroundColor = grid[i].color;
+                        cell.innerText = grid[i].shape[0];
+                    }
+
+                    cell.onclick = () => {
+                        const block = document.getElementById('currentBlock').dataset.block;
+
+                        if (!block) return;
+                        socket.emit('placeBlock', {
+                            index: i,
+                            block: JSON.parse(block)
+                        });
+
+                        document.getElementById('currentBlock').innerHTML = '';
+                    }
+                    container.appendChild(cell);
+                }
+            }
+
+            socket.on('gridUpdate', (grid) => renderGrid(grid));
+            socket.on('currentTurn', (name) => {
+                document.getElementById('currentTurn').innerText = name;
+            });
+            socket.on('yourTurn', (block) => {
+                document.getElementById('currentBlock').dataset.block = JSON.stringify(block);
+      document.getElementById('currentBlock').innerText = block.shape + ' ' + block.color;
+            });
+            socket.on('message', (msg) => {
+                document.getElementById('message').innerText = msg;
+            });
+            socket.on('scoreUpdate', (scores) => {
+                const board = document.getElementById('scoreboard');
+                board.innerHTML = '<h3>Scores</h3>';
+                
+                for (let n in scores) {
+                board.innerHTML += `<p>${n}: ${scores[n]}</p>`;
+                }
+            });
+        </script>
 
 
     </body>
