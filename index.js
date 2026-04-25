@@ -56,7 +56,7 @@ io.on('connection', (socket) => {
   console.log('Player connection: ', socket.id);
 
   socket.on('join', (data) => {
-    const playerName = data.name || 'Player_${socket.id.substring(0, 4)';
+    const playerName = data.name || `Player_${socket.id.substring(0, 4)}`;
 
     if (!players.some( p => p.id === socket.id)) {
       players.push({id: socket.id, name: playerName});
@@ -65,19 +65,25 @@ io.on('connection', (socket) => {
       io.emit('playLists', players);
       io.emit('scoreUpdate', scores);
 
-      if (players.length == 1 && !gameStarted) {
-        gameStarted = true;
-        startNewTurn();
-      } else {
-        //synchronize the current puzzle to other new players.
-        socket.emit('gameState', { grid, currentPlayerIndex });
+      // 游戏开始后新玩家也可以加入
+      if (gameStarted) {
+        // 同步当前游戏状态给新玩家
+        socket.emit('gridUpdate', grid);
       }
     }
   })
 
-  socket.on('placeBlock', (index) => {
-    handlePlacement(socket.id, index);
+  socket.on('placeBlock', (data) => {
+    handlePlacement(socket.id, data.index, data.block);
   })
+
+  socket.on('startGame', () => {
+    if (!gameStarted && players.length > 0) {
+      gameStarted = true;
+      io.emit('gameStarted');
+      startNewTurn();
+    }
+  });
 
   socket.on('disconnect', () => {
     players = players.filter( p => p.id !== socket.id);
@@ -103,6 +109,7 @@ function startNewTurn() {
   const currentPlayer = players[currentPlayerIndex];
   io.emit('newTurn', {
     activePlayerId: currentPlayer.id,
+    activePlayerName: currentPlayer.name,
     block: currentBlock,
     nextIndex: currentPlayerIndex
   });
@@ -113,15 +120,17 @@ function startNewTurn() {
   }, 60000);
 }
 
-function handlePlacement(socketId, index) {
+function handlePlacement(socketId, index, block) {
   const currentPlayer = players[currentPlayerIndex];
   if (!currentPlayer || socketId !== currentPlayer.id) return;
   if (grid[index] != null) return;
 
   clearTimeout(turnTimer);
 
+  grid[index] = block;
+
   let pointsEarned = checkGameRules(index);
-  scores[socketId] += pointsEarned;
+  scores[socketId] += (pointsEarned + 1);
 
   currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
 
@@ -142,11 +151,25 @@ function checkGameRules(lastPos) {
     return 16;
   }
 
-  const directions = [1,4,5,3];
   const row = Math.floor(lastPos / 4);
   const col = lastPos % 4;
-
   const target = grid[lastPos];
+
+  // 检查横向（同一行）
+  checkLine(row * 4, 1, 4, target, blocksToRemove);
+
+  // 检查纵向（同一列）
+  checkLine(col, 4, 4, target, blocksToRemove);
+
+  // 检查主对角线（左上到右下）
+  if (row === col) {
+    checkLine(0, 5, 4, target, blocksToRemove);
+  }
+
+  // 检查副对角线（右上到左下）
+  if (row + col === 3) {
+    checkLine(3, 3, 4, target, blocksToRemove);
+  }
 
   blocksToRemove.forEach(idx => {
     pool.push(grid[idx]);
@@ -155,6 +178,41 @@ function checkGameRules(lastPos) {
   });
 
   return earned;
+}
+
+function checkLine(start, step, count, target, blocksToRemove) {
+  let sameColor = [];
+  let sameShape = [];
+
+  for (let i = 0; i < count; i++) {
+    const idx = start + i * step;
+    const cell = grid[idx];
+
+    if (cell) {
+      if (cell.color === target.color) {
+        sameColor.push(idx);
+      } else {
+        sameColor = [];
+      }
+
+      if (cell.shape === target.shape) {
+        sameShape.push(idx);
+      } else {
+        sameShape = [];
+      }
+
+      if (sameColor.length === 4) {
+        sameColor.forEach(i => blocksToRemove.add(i));
+      }
+
+      if (sameShape.length === 4) {
+        sameShape.forEach(i => blocksToRemove.add(i));
+      }
+    } else {
+      sameColor = [];
+      sameShape = [];
+    }
+  }
 }
 
 function resetGame() {

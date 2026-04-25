@@ -14,6 +14,7 @@
         <h1>The 4*4 Puzzle Game</h1>
         <input id="nameInput" placeholder="Please enter your name.">
         <button onclick="joinGame()">Join the Game</button>
+        <button id="startBtn" onclick="startGame()" style="display:none;">Start Game</button>
 
         <h3>Current Turn: <span id="currentTurn"></span></h3>
         <div id="message"></div>
@@ -25,12 +26,20 @@
         <script>
             const socket = io();
             let playerName = "";
-            
+            let hasJoined = false;
+
             function joinGame(){
-                playerName = document.getElementByld('namelnput').value;
-                if(!playerName) return;
-                socket.emit('join',playerName);
-                socket.emit('requestTurn');
+                playerName = document.getElementById('nameInput').value;
+                if(!playerName) return alert('Please enter a name');
+                socket.emit('join', { name: playerName});
+                hasJoined = true;
+                document.getElementById('nameInput').value = '';
+                document.getElementById('message').innerText = `Welcome, ${playerName}!`;
+            }
+
+            function startGame(){
+                socket.emit('startGame');
+                document.getElementById('startBtn').style.display = 'none';
             }
 
             function renderGrid(grid){
@@ -48,39 +57,83 @@
                     }
 
                     cell.onclick = () => {
-                        const block = document.getElementById('currentBlock').dataset.block;
+                        const blockStr = document.getElementById('currentBlock').dataset.block;
 
-                        if (!block) return;
+                        if (!blockStr) return;
+
                         socket.emit('placeBlock', {
                             index: i,
-                            block: JSON.parse(block)
+                            block: JSON.parse(blockStr)
                         });
 
                         document.getElementById('currentBlock').innerHTML = '';
+                        document.getElementById('currentBlock').dataset.block = '';
                     }
                     container.appendChild(cell);
                 }
             }
 
             socket.on('gridUpdate', (grid) => renderGrid(grid));
-            socket.on('currentTurn', (name) => {
-                document.getElementById('currentTurn').innerText = name;
+
+            socket.on('newTurn', (data) => {
+                const turnDisplay = document.getElementById('currentTurn');
+                const blockDisplay = document.getElementById('currentBlock');
+
+                if (data.activePlayerId === socket.id) {
+                    turnDisplay.innerText = "Your Turn!";
+                    turnDisplay.style.color = "red";
+
+                    blockDisplay.dataset.block = JSON.stringify(data.block);
+                    blockDisplay.innerHTML = `<p>Place this:</p>`;
+
+                    const preview = document.createElement('div');
+                    preview.className = 'grid-cell';
+                    preview.style.backgroundColor = data.block.color;
+                    preview.innerText = data.block.shape[0];
+                    blockDisplay.appendChild(preview);
+                } else {
+                    turnDisplay.innerText = `${data.activePlayerName}'s Turn`;
+                    turnDisplay.style.color = "black";
+                    blockDisplay.innerText = `Waiting for ${data.activePlayerName}...`;
+                    blockDisplay.dataset.block = "";
+                }
             });
-            socket.on('yourTurn', (block) => {
-                document.getElementById('currentBlock').dataset.block = JSON.stringify(block);
-      document.getElementById('currentBlock').innerText = block.shape + ' ' + block.color;
-            });
+
+
             socket.on('message', (msg) => {
                 document.getElementById('message').innerText = msg;
             });
+
             socket.on('scoreUpdate', (scores) => {
                 const board = document.getElementById('scoreboard');
                 board.innerHTML = '<h3>Scores</h3>';
-                
-                for (let n in scores) {
-                board.innerHTML += `<p>${n}: ${scores[n]}</p>`;
+
+                for (let id in scores) {
+                    board.innerHTML += `<p>Player: ${scores[id]}</p>`;
                 }
             });
+
+            socket.on('playLists', (playersList) => {
+                const board = document.getElementById('scoreboard');
+                board.innerHTML = '<h3>Players</h3>';
+
+                playersList.forEach(player => {
+                    board.innerHTML += `<p>${player.name}</p>`;
+                });
+
+                // 如果有玩家加入且游戏未开始，显示开始按钮
+                if (hasJoined && playersList.length >= 1) {
+                    document.getElementById('startBtn').style.display = 'inline-block';
+                }
+            });
+
+            socket.on('gameStarted', () => {
+                document.getElementById('message').innerText = 'Game Started!';
+                document.getElementById('startBtn').style.display = 'none';
+            });
+
+            window.onload = () => renderGrid(Array(16).fill(null));
+            
         </script>
 
 
