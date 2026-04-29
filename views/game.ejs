@@ -18,18 +18,34 @@
 
         <h3>Current Turn: <span id="currentTurn"></span></h3>
         <div id="message"></div>
-        <div id="scoreboard"></div>
-        <div id="gameGrid"></div>
-        <div id="currentBlock"></div>
+
+        <div id="game-container">
+            <div id="game-main">
+                <div id="gameGrid"></div>
+                <div id="currentBlock"></div>
+            </div>
+            <div id="scoreboard">
+                <h3>Scoreboard</h3>
+                <table id="score-table">
+                    <thead>
+                        <tr><th>Player</th><th>Score</th></tr>
+                    </thead>
+                    <tbody id="score-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
         <script src="/socket.io/socket.io.js"></script>
 
         <script>
             const socket = io();
             let playerName = "";
             let hasJoined = false;
+            let gameStarted = false;
+            let currentActiveId = null;
 
             function joinGame(){
-                playerName = document.getElementById('nameInput').value;
+                playerName = document.getElementById('nameInput').value.trim();
                 if(!playerName) return alert('Please enter a name');
                 socket.emit('join', { name: playerName});
                 hasJoined = true;
@@ -58,18 +74,44 @@
 
                     cell.onclick = () => {
                         const blockStr = document.getElementById('currentBlock').dataset.block;
-
                         if (!blockStr) return;
-
                         socket.emit('placeBlock', {
                             index: i,
                             block: JSON.parse(blockStr)
                         });
-
                         document.getElementById('currentBlock').innerHTML = '';
                         document.getElementById('currentBlock').dataset.block = '';
                     }
                     container.appendChild(cell);
+                }
+            }
+
+            function updateScoreboard(scores) {
+                const tbody = document.getElementById('score-tbody');
+                // 保留现有行顺序，只更新分数；新玩家追加到末尾
+                const existingRows = {};
+                tbody.querySelectorAll('tr').forEach(row => {
+                    existingRows[row.dataset.id] = row;
+                });
+
+                for (let id in scores) {
+                    if (existingRows[id]) {
+                        // 更新分数
+                        existingRows[id].querySelector('.score-cell').innerText = scores[id].score;
+                        existingRows[id].classList.toggle('current-player', id === currentActiveId);
+                    } else {
+                        // 新玩家，追加到末尾
+                        const row = document.createElement('tr');
+                        row.dataset.id = id;
+                        if (id === currentActiveId) row.classList.add('current-player');
+                        row.innerHTML = `<td>${scores[id].name}</td><td class="score-cell">${scores[id].score}</td>`;
+                        tbody.appendChild(row);
+                    }
+                }
+
+                // 移除已离开的玩家
+                for (let id in existingRows) {
+                    if (!scores[id]) existingRows[id].remove();
                 }
             }
 
@@ -78,9 +120,15 @@
             socket.on('newTurn', (data) => {
                 const turnDisplay = document.getElementById('currentTurn');
                 const blockDisplay = document.getElementById('currentBlock');
+                currentActiveId = data.activePlayerId;
+
+                // 更新得分表中的当前玩家高亮
+                document.querySelectorAll('#score-tbody tr').forEach(row => {
+                    row.classList.toggle('current-player', row.dataset.id === currentActiveId);
+                });
 
                 if (data.activePlayerId === socket.id) {
-                    turnDisplay.innerText = "Your Turn!";
+                    turnDisplay.innerText = `It's your turn, ${data.activePlayerName}`;
                     turnDisplay.style.color = "red";
 
                     blockDisplay.dataset.block = JSON.stringify(data.block);
@@ -99,43 +147,42 @@
                 }
             });
 
-
             socket.on('message', (msg) => {
                 document.getElementById('message').innerText = msg;
             });
 
             socket.on('scoreUpdate', (scores) => {
-                const board = document.getElementById('scoreboard');
-                board.innerHTML = '<h3>Scores</h3>';
-
-                for (let id in scores) {
-                    board.innerHTML += `<p>Player: ${scores[id]}</p>`;
-                }
+                updateScoreboard(scores);
+                // 更新后重新应用当前玩家高亮
+                document.querySelectorAll('#score-tbody tr').forEach(row => {
+                    row.classList.toggle('current-player', row.dataset.id === currentActiveId);
+                });
             });
 
             socket.on('playLists', (playersList) => {
-                const board = document.getElementById('scoreboard');
-                board.innerHTML = '<h3>Players</h3>';
-
-                playersList.forEach(player => {
-                    board.innerHTML += `<p>${player.name}</p>`;
-                });
-
-                // 如果有玩家加入且游戏未开始，显示开始按钮
+                // 游戏开始前,完全重建玩家列表
+                if (!gameStarted) {
+                    const tbody = document.getElementById('score-tbody');
+                    tbody.innerHTML = '';
+                    playersList.forEach(player => {
+                        const row = document.createElement('tr');
+                        row.dataset.id = player.id;
+                        row.innerHTML = `<td>${player.name}</td><td class="score-cell">0</td>`;
+                        tbody.appendChild(row);
+                    });
+                }
                 if (hasJoined && playersList.length >= 1) {
                     document.getElementById('startBtn').style.display = 'inline-block';
                 }
             });
 
             socket.on('gameStarted', () => {
+                gameStarted = true;
                 document.getElementById('message').innerText = 'Game Started!';
                 document.getElementById('startBtn').style.display = 'none';
             });
 
             window.onload = () => renderGrid(Array(16).fill(null));
-            
         </script>
-
-
     </body>
 </html>

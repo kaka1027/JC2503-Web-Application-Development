@@ -7,6 +7,15 @@ nav a {
   margin: 0 10px;
   text-decoration: none;
 }
+#game-container {
+  display: flex;
+  align-items: flex-start;
+  gap: 30px;
+  margin-top: 10px;
+}
+#game-main {
+  flex: 1;
+}
 #gameGrid {
   display: grid;
   grid-template-columns: repeat(4, 80px);
@@ -27,4 +36,36 @@ nav a {
   margin: 10px 0;
   padding: 10px;
   border: 1px solid red;
+}
+#scoreboard {
+  min-width: 200px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 10px 16px;
+  background: #fafafa;
+}
+#scoreboard h3 {
+  margin: 0 0 10px 0;
+  font-size: 16px;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 6px;
+}
+#score-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+#score-table th {
+  text-align: left;
+  padding: 4px 8px;
+  background: #eee;
+  border-bottom: 1px solid #ccc;
+}
+#score-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid #eee;
+}
+#score-table tr.current-player td {
+  font-weight: bold;
+  background: #fff3cd;
 }

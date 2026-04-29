@@ -60,7 +60,7 @@ io.on('connection', (socket) => {
 
     if (!players.some( p => p.id === socket.id)) {
       players.push({id: socket.id, name: playerName});
-      scores[socket.id] = 0;
+      scores[socket.id] = { name: playerName, score: 0 };
 
       io.emit('playLists', players);
       io.emit('scoreUpdate', scores);
@@ -86,12 +86,24 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    const disconnectedPlayerIndex = players.findIndex(p => p.id === socket.id);
     players = players.filter( p => p.id !== socket.id);
     delete scores[socket.id];
+
     io.emit('playLists', players);
+    io.emit('scoreUpdate', scores);
 
     if (players.length === 0) {
       resetGame();
+    } else if (gameStarted && disconnectedPlayerIndex !== -1) {
+      // 如果断开的是当前玩家，跳过他的回合
+      if (disconnectedPlayerIndex === currentPlayerIndex) {
+        currentPlayerIndex = currentPlayerIndex % players.length;
+        startNewTurn();
+      } else if (disconnectedPlayerIndex < currentPlayerIndex) {
+        // 如果断开的玩家在当前玩家之前，需要调整索引
+        currentPlayerIndex--;
+      }
     }
   });
 });
@@ -120,6 +132,14 @@ function startNewTurn() {
   }, 60000);
 }
 
+function skipTurn() {
+  if (players.length === 0) return;
+
+  currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+  io.emit('message', 'Turn skipped due to timeout');
+  startNewTurn();
+}
+
 function handlePlacement(socketId, index, block) {
   const currentPlayer = players[currentPlayerIndex];
   if (!currentPlayer || socketId !== currentPlayer.id) return;
@@ -130,7 +150,9 @@ function handlePlacement(socketId, index, block) {
   grid[index] = block;
 
   let pointsEarned = checkGameRules(index);
-  scores[socketId] += (pointsEarned + 1);
+  if (pointsEarned > 0) {
+    scores[socketId].score += pointsEarned;
+  }
 
   currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
 
