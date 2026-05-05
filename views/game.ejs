@@ -47,6 +47,7 @@
             function joinGame(){
                 playerName = document.getElementById('nameInput').value.trim();
                 if(!playerName) return alert('Please enter a name');
+                console.log('发送 join 事件，玩家名:', playerName, 'socket.id:', socket.id);
                 socket.emit('join', { name: playerName});
                 hasJoined = true;
                 document.getElementById('nameInput').value = '';
@@ -127,7 +128,7 @@
                     row.classList.toggle('current-player', row.dataset.id === currentActiveId);
                 });
 
-                if (data.activePlayerId === socket.id) {
+                if (data.activePlayerId.startsWith(socket.id)) {
                     turnDisplay.innerText = `It's your turn, ${data.activePlayerName}`;
                     turnDisplay.style.color = "red";
 
@@ -152,6 +153,7 @@
             });
 
             socket.on('scoreUpdate', (scores) => {
+                console.log('收到分数更新:', scores);
                 updateScoreboard(scores);
                 // 更新后重新应用当前玩家高亮
                 document.querySelectorAll('#score-tbody tr').forEach(row => {
