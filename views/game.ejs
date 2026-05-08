@@ -58,10 +58,15 @@
 
                 // show list of players to quit
                 const playerList = myPlayers.map((p, i) => `${i + 1}. ${p.playerName} (${p.playerId})`).join('\n');
-                const choice = prompt(`Select player to quit:\n${playerList}\n\nEnter number:`);
+                const choice = prompt(`Select player to quit:\n${playerList}\n${myPlayers.length + 1}. Quit All\n\nEnter number:`);
                 const index = parseInt(choice) - 1;
 
-                if (index >= 0 && index < myPlayers.length) {
+                if (index === myPlayers.length) {
+                    // quit all players
+                    myPlayers.forEach(player => {
+                        socket.emit('quitGame', { playerId: player.playerId });
+                    });
+                } else if (index >= 0 && index < myPlayers.length) {
                     const player = myPlayers[index];
                     socket.emit('quitGame', { playerId: player.playerId });
                 }
