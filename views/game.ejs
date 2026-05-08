@@ -11,10 +11,12 @@
             <a href="/game">Game</a>
         </nav>
 
-        <h1>The 4*4 Puzzle Game</h1>
-        <input id="nameInput" placeholder="Please enter your name.">
-        <button onclick="joinGame()">Join the Game</button>
-        <button id="startBtn" onclick="startGame()" style="display:none;">Start Game</button>
+        <h1>The 4×4 Puzzle Game</h1>
+        <div id="join-area">
+            <input id="nameInput" placeholder="Enter your name to join...">
+            <button onclick="joinGame()">Join the Game</button>
+        </div>
+        <button id="quitBtn" onclick="quitGame()" style="display:none;">Quit Game</button>
 
         <h3>Current Turn: <span id="currentTurn"></span></h3>
         <div id="message"></div>
@@ -39,57 +41,97 @@
 
         <script>
             const socket = io();
-            let playerName = "";
-            let hasJoined = false;
-            let gameStarted = false;
+            let myPlayers = []; // array of { playerId, playerName }
             let currentActiveId = null;
 
-            function joinGame(){
-                playerName = document.getElementById('nameInput').value.trim();
-                if(!playerName) return alert('Please enter a name');
-                console.log('发送 join 事件，玩家名:', playerName, 'socket.id:', socket.id);
-                socket.emit('join', { name: playerName});
-                hasJoined = true;
+            // ── join / quit ──────────────────────────────────────────
+
+            function joinGame() {
+                const playerName = document.getElementById('nameInput').value.trim();
+                if (!playerName) return alert('Please enter a name.');
+                socket.emit('join', { name: playerName });
                 document.getElementById('nameInput').value = '';
-                document.getElementById('message').innerText = `Welcome, ${playerName}!`;
             }
 
-            function startGame(){
-                socket.emit('startGame');
-                document.getElementById('startBtn').style.display = 'none';
+            function quitGame() {
+                if (myPlayers.length === 0) return alert('You have not joined any players.');
+
+                // show list of players to quit
+                const playerList = myPlayers.map((p, i) => `${i + 1}. ${p.playerName} (${p.playerId})`).join('\n');
+                const choice = prompt(`Select player to quit:\n${playerList}\n\nEnter number:`);
+                const index = parseInt(choice) - 1;
+
+                if (index >= 0 && index < myPlayers.length) {
+                    const player = myPlayers[index];
+                    socket.emit('quitGame', { playerId: player.playerId });
+                }
             }
 
-            function renderGrid(grid){
+            // ── shape rendering ──────────────────────────────────────
+
+            function createShapeSVG(shape, color) {
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svg.setAttribute('width', '50');
+                svg.setAttribute('height', '50');
+                svg.setAttribute('viewBox', '0 0 50 50');
+
+                let el;
+                if (shape === 'square') {
+                    el = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    el.setAttribute('x', '10'); el.setAttribute('y', '10');
+                    el.setAttribute('width', '30'); el.setAttribute('height', '30');
+                } else if (shape === 'circle') {
+                    el = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    el.setAttribute('cx', '25'); el.setAttribute('cy', '25'); el.setAttribute('r', '15');
+                } else if (shape === 'triangle') {
+                    el = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                    el.setAttribute('points', '25,10 40,40 10,40');
+                } else if (shape === 'star') {
+                    el = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                    el.setAttribute('points', '25,5 29,18 43,18 32,26 36,40 25,32 14,40 18,26 7,18 21,18');
+                }
+                if (el) {
+                    el.setAttribute('fill', color);
+                    svg.appendChild(el);
+                }
+                return svg;
+            }
+
+            // ── grid rendering ───────────────────────────────────────
+
+            function renderGrid(grid) {
                 const container = document.getElementById('gameGrid');
                 container.innerHTML = '';
 
-                for (let i = 0; i < 16; i++){
+                for (let i = 0; i < 16; i++) {
                     const cell = document.createElement('div');
                     cell.className = 'grid-cell';
                     cell.dataset.index = i;
 
-                    if (grid[i]){
-                        cell.style.backgroundColor = grid[i].color;
-                        cell.innerText = grid[i].shape[0];
+                    if (grid[i]) {
+                        cell.appendChild(createShapeSVG(grid[i].shape, grid[i].color));
                     }
 
                     cell.onclick = () => {
-                        const blockStr = document.getElementById('currentBlock').dataset.block;
-                        if (!blockStr) return;
-                        socket.emit('placeBlock', {
-                            index: i,
-                            block: JSON.parse(blockStr)
-                        });
+                        const blockData = document.getElementById('currentBlock').dataset.block;
+                        if (!blockData) return;
+
+                        // find which of my players is the current turn
+                        const myActivePlayer = myPlayers.find(p => p.playerId === currentActiveId);
+                        if (!myActivePlayer) return; // not my turn
+
+                        socket.emit('placeBlock', { playerId: myActivePlayer.playerId, index: i });
                         document.getElementById('currentBlock').innerHTML = '';
                         document.getElementById('currentBlock').dataset.block = '';
-                    }
+                    };
                     container.appendChild(cell);
                 }
             }
 
+            // ── scoreboard ───────────────────────────────────────────
+
             function updateScoreboard(scores) {
                 const tbody = document.getElementById('score-tbody');
-                // 保留现有行顺序，只更新分数；新玩家追加到末尾
                 const existingRows = {};
                 tbody.querySelectorAll('tr').forEach(row => {
                     existingRows[row.dataset.id] = row;
@@ -97,11 +139,9 @@
 
                 for (let id in scores) {
                     if (existingRows[id]) {
-                        // 更新分数
                         existingRows[id].querySelector('.score-cell').innerText = scores[id].score;
                         existingRows[id].classList.toggle('current-player', id === currentActiveId);
                     } else {
-                        // 新玩家，追加到末尾
                         const row = document.createElement('tr');
                         row.dataset.id = id;
                         if (id === currentActiveId) row.classList.add('current-player');
@@ -110,41 +150,50 @@
                     }
                 }
 
-                // 移除已离开的玩家
                 for (let id in existingRows) {
                     if (!scores[id]) existingRows[id].remove();
                 }
             }
 
+            // ── socket events ────────────────────────────────────────
+
+            socket.on('joinSuccess', (data) => {
+                myPlayers.push({ playerId: data.playerId, playerName: data.playerName });
+                document.getElementById('quitBtn').style.display = 'inline-block';
+                document.getElementById('message').innerText = `Welcome, ${data.playerName}! (${data.playerId})`;
+            });
+
             socket.on('gridUpdate', (grid) => renderGrid(grid));
+
+            socket.on('gameStarted', () => {
+                // game is always live — nothing extra needed
+            });
 
             socket.on('newTurn', (data) => {
                 const turnDisplay = document.getElementById('currentTurn');
                 const blockDisplay = document.getElementById('currentBlock');
                 currentActiveId = data.activePlayerId;
 
-                // 更新得分表中的当前玩家高亮
                 document.querySelectorAll('#score-tbody tr').forEach(row => {
                     row.classList.toggle('current-player', row.dataset.id === currentActiveId);
                 });
 
-                if (data.activePlayerId.startsWith(socket.id)) {
+                if (data.isYourTurn) {
                     turnDisplay.innerText = `It's your turn, ${data.activePlayerName}`;
-                    turnDisplay.style.color = "red";
+                    turnDisplay.style.color = 'red';
 
                     blockDisplay.dataset.block = JSON.stringify(data.block);
-                    blockDisplay.innerHTML = `<p>Place this:</p>`;
+                    blockDisplay.innerHTML = '<p>Place this:</p>';
 
                     const preview = document.createElement('div');
                     preview.className = 'grid-cell';
-                    preview.style.backgroundColor = data.block.color;
-                    preview.innerText = data.block.shape[0];
+                    preview.appendChild(createShapeSVG(data.block.shape, data.block.color));
                     blockDisplay.appendChild(preview);
                 } else {
                     turnDisplay.innerText = `${data.activePlayerName}'s Turn`;
-                    turnDisplay.style.color = "black";
-                    blockDisplay.innerText = `Waiting for ${data.activePlayerName}...`;
-                    blockDisplay.dataset.block = "";
+                    turnDisplay.style.color = 'black';
+                    blockDisplay.innerHTML = '';
+                    blockDisplay.dataset.block = '';
                 }
             });
 
@@ -153,35 +202,48 @@
             });
 
             socket.on('scoreUpdate', (scores) => {
-                console.log('收到分数更新:', scores);
                 updateScoreboard(scores);
-                // 更新后重新应用当前玩家高亮
                 document.querySelectorAll('#score-tbody tr').forEach(row => {
                     row.classList.toggle('current-player', row.dataset.id === currentActiveId);
                 });
             });
 
             socket.on('playLists', (playersList) => {
-                // 游戏开始前,完全重建玩家列表
-                if (!gameStarted) {
-                    const tbody = document.getElementById('score-tbody');
-                    tbody.innerHTML = '';
-                    playersList.forEach(player => {
+                const tbody = document.getElementById('score-tbody');
+                const existingIds = new Set(playersList.map(p => p.id));
+
+                // remove rows for players who left
+                tbody.querySelectorAll('tr').forEach(row => {
+                    if (!existingIds.has(row.dataset.id)) row.remove();
+                });
+
+                // add rows for new players (score will be filled by scoreUpdate)
+                const existingRows = new Set([...tbody.querySelectorAll('tr')].map(r => r.dataset.id));
+                playersList.forEach(player => {
+                    if (!existingRows.has(player.id)) {
                         const row = document.createElement('tr');
                         row.dataset.id = player.id;
+                        if (player.id === currentActiveId) row.classList.add('current-player');
                         row.innerHTML = `<td>${player.name}</td><td class="score-cell">0</td>`;
                         tbody.appendChild(row);
-                    });
-                }
-                if (hasJoined && playersList.length >= 1) {
-                    document.getElementById('startBtn').style.display = 'inline-block';
-                }
+                    }
+                });
             });
 
-            socket.on('gameStarted', () => {
-                gameStarted = true;
-                document.getElementById('message').innerText = 'Game Started!';
-                document.getElementById('startBtn').style.display = 'none';
+            socket.on('playerQuit', (data) => {
+                const idx = myPlayers.findIndex(p => p.playerId === data.playerId);
+                if (idx !== -1) {
+                    const player = myPlayers[idx];
+                    myPlayers.splice(idx, 1);
+                    document.getElementById('message').innerText = `${player.playerName} has left the game.`;
+                }
+
+                if (myPlayers.length === 0) {
+                    document.getElementById('quitBtn').style.display = 'none';
+                    document.getElementById('currentTurn').innerText = '';
+                    document.getElementById('currentBlock').innerHTML = '';
+                    document.getElementById('currentBlock').dataset.block = '';
+                }
             });
 
             window.onload = () => renderGrid(Array(16).fill(null));

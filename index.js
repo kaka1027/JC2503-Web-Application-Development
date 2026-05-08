@@ -7,190 +7,228 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// static file
 app.use(express.static('public'));
 app.set('view engine', 'ejs');
 
-// protocol
-app.get('/', (req, res) => {
-  res.render('index');
-});
+app.get('/', (req, res) => res.render('index'));
+app.get('/about', (req, res) => res.render('about'));
+app.get('/game', (req, res) => res.render('game'));
+app.get('/report.html', (req, res) => res.sendFile(path.join(__dirname, 'report.html')));
 
-app.get('/about', (req, res) => {
-  res.render('about');
-});
-
-app.get('/game', (req, res) => {
-  res.render('game');
-});
-
-app.get('/report.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'report.html'));
-});
-
-// 用于存储每个socket对应的玩家数组
-const socketPlayers = new Map();
-
-// 用于记录每个socket当前活跃的玩家索引
-const activePlayerIndexMap = new Map();
+// socketId -> [playerId1, playerId2, ...]
+const socketPlayerMap = new Map();
 
 let players = [];
 let currentPlayerIndex = 0;
 let grid = Array(16).fill(null);
 let pool = [];
 let scores = {};
+let currentBlock = null;
+let turnTimer = null;
+let nextPlayerId = 1;
 
-const shape = ['circle', 'square', 'star','triangle'];
-const color = ['red', 'blue', 'yellow', 'green'];
+const shapes = ['circle', 'square', 'star', 'triangle'];
+const colors = ['red', 'blue', 'yellow', 'green'];
 
-function initPool(){
+function initPool() {
   pool = [];
-  for (let s of shape){
-    for (let c of color){
-      pool.push({shape: s, color: c});
+  for (let s of shapes) {
+    for (let c of colors) {
+      pool.push({ shape: s, color: c });
     }
   }
 }
 
 initPool();
 
-let gameStarted = false;
+// ─── player management ───────────────────────────────────────────────
+
+function removePlayer(playerId) {
+  const idx = players.findIndex(p => p.id === playerId);
+  if (idx === -1) return;
+
+  const isCurrentTurn = (idx === currentPlayerIndex);
+
+  players.splice(idx, 1);
+  delete scores[playerId];
+
+  console.log(`Player removed: ${playerId}. Remaining: ${players.length}`);
+
+  io.emit('playLists', players);
+  io.emit('scoreUpdate', scores);
+
+  if (players.length === 0) {
+    // no players left — reset state but game is always "running"
+    clearTimeout(turnTimer);
+    grid.fill(null);
+    initPool();
+    currentPlayerIndex = 0;
+    currentBlock = null;
+    return;
+  }
+
+  // adjust index after removal
+  if (idx < currentPlayerIndex) {
+    currentPlayerIndex--;
+  } else if (isCurrentTurn) {
+    if (currentPlayerIndex >= players.length) {
+      currentPlayerIndex = 0;
+    }
+    clearTimeout(turnTimer);
+    startNewTurn();
+    return;
+  }
+}
+
+// ─── socket events ───────────────────────────────────────────────────
 
 io.on('connection', (socket) => {
-  console.log('Player connection: ', socket.id);
+  console.log('Socket connected:', socket.id);
 
   socket.on('join', (data) => {
-    const playerName = data.name || `Player_${socket.id.substring(0, 4)}`;
+    const playerName = data.name || `Player_${nextPlayerId}`;
+    const playerId = `player_${nextPlayerId++}`;
 
-    // 如果这个socket还没有玩家数组，初始化
-    if (!socketPlayers.has(socket.id)) {
-      socketPlayers.set(socket.id, []);
-      activePlayerIndexMap.set(socket.id, 0);
+    // track which socket owns this player
+    if (!socketPlayerMap.has(socket.id)) {
+      socketPlayerMap.set(socket.id, []);
     }
+    socketPlayerMap.get(socket.id).push(playerId);
 
-    const playersArray = socketPlayers.get(socket.id);
+    players.push({ id: playerId, name: playerName, socketId: socket.id });
+    scores[playerId] = { name: playerName, score: 0 };
 
-    // 生成唯一玩家ID：socket.id + 下标
-    const uniquePlayerId = `${socket.id}_${playersArray.length}`;
+    console.log('Player joined:', playerName, 'ID:', playerId);
 
-    // 添加新玩家到该socket的玩家数组
-    playersArray.push({
-      id: uniquePlayerId,
-      name: playerName
-    });
-
-    // 更新全局players数组（保持兼容）
-    players.push({
-      id: uniquePlayerId,
-      name: playerName
-    });
-
-    // 初始化分数
-    scores[uniquePlayerId] = { name: playerName, score: 0 };
-
-    console.log('玩家加入，当前分数表：', scores);
-    console.log('socketPlayers:', socketPlayers);
+    // tell this socket their new playerId
+    socket.emit('joinSuccess', { playerId, playerName });
 
     io.emit('playLists', players);
     io.emit('scoreUpdate', scores);
 
-    // 游戏开始后新玩家也可以加入
-    if (gameStarted) {
-      socket.emit('gridUpdate', grid);
+    // always send current grid so new player sees the board
+    socket.emit('gridUpdate', grid);
+    socket.emit('gameStarted');
+
+    if (players.length === 1) {
+      // first player — start the game
+      startNewTurn();
+    } else {
+      // game already running — tell the new player whose turn it currently is
+      const currentPlayer = players[currentPlayerIndex];
+      const isNewPlayerTurn = socket.id === currentPlayer.socketId;
+      socket.emit('newTurn', {
+        activePlayerId: currentPlayer.id,
+        activePlayerName: currentPlayer.name,
+        block: isNewPlayerTurn ? currentBlock : null,
+        isYourTurn: isNewPlayerTurn
+      });
     }
-  })
+  });
 
   socket.on('placeBlock', (data) => {
-    handlePlacement(socket.id, data.index, data.block);
-  })
+    handlePlacement(data.playerId, data.index);
+  });
 
-  socket.on('startGame', () => {
-    if (!gameStarted && players.length > 0) {
-      gameStarted = true;
-      io.emit('gameStarted');
-      startNewTurn();
+  socket.on('quitGame', (data) => {
+    const playerId = data.playerId;
+    if (!playerId) return;
+
+    const playerIds = socketPlayerMap.get(socket.id);
+    if (!playerIds || !playerIds.includes(playerId)) return;
+
+    // remove from socket's player list
+    const idx = playerIds.indexOf(playerId);
+    playerIds.splice(idx, 1);
+    if (playerIds.length === 0) {
+      socketPlayerMap.delete(socket.id);
     }
+
+    removePlayer(playerId);
+    socket.emit('playerQuit', { playerId });
+    console.log(`Player quit: ${playerId}`);
   });
 
   socket.on('disconnect', () => {
-    // 获取该socket下的所有玩家
-    const playersArray = socketPlayers.get(socket.id);
+    const playerIds = socketPlayerMap.get(socket.id);
+    if (!playerIds) return;
 
-    if (playersArray) {
-      // 从全局players数组中移除该socket的所有玩家
-      players = players.filter(p => !p.id.startsWith(socket.id));
+    socketPlayerMap.delete(socket.id);
 
-      // 从scores中移除该socket的所有玩家
-      playersArray.forEach(player => {
-        delete scores[player.id];
-      });
-
-      // 从Map中移除该socket
-      socketPlayers.delete(socket.id);
-      activePlayerIndexMap.delete(socket.id);
-    }
-
-    console.log('玩家断线，当前分数表：', scores);
-
-    io.emit('playLists', players);
-    io.emit('scoreUpdate', scores);
-
-    if (players.length === 0) {
-      resetGame();
-    } else if (gameStarted) {
-      // 如果游戏已开始且还有玩家，继续下一回合
-      currentPlayerIndex = currentPlayerIndex % players.length;
-      startNewTurn();
-    }
+    // remove all players owned by this socket
+    playerIds.forEach(playerId => {
+      removePlayer(playerId);
+      console.log(`Player disconnected: ${playerId}`);
+    });
   });
 });
 
-let currentBlock = null;
-let turnTimer = null;
+// ─── turn logic ──────────────────────────────────────────────────────
 
 function startNewTurn() {
   if (players.length === 0) return;
-  if (pool.length === 0) initPool();
+
+  if (pool.length === 0) {
+    console.log('Pool is empty, reinitialising');
+    initPool();
+  }
 
   const randomIndex = Math.floor(Math.random() * pool.length);
   currentBlock = pool.splice(randomIndex, 1)[0];
 
   const currentPlayer = players[currentPlayerIndex];
-  io.emit('newTurn', {
-    activePlayerId: currentPlayer.id,
-    activePlayerName: currentPlayer.name,
-    block: currentBlock,
-    nextIndex: currentPlayerIndex
+  console.log(`New turn: ${currentPlayer.name}, pool remaining: ${pool.length}`);
+
+  // send turn info to everyone — block details only to the active player's socket
+  io.sockets.sockets.forEach((s) => {
+    const isActive = s.id === currentPlayer.socketId;
+    s.emit('newTurn', {
+      activePlayerId: currentPlayer.id,
+      activePlayerName: currentPlayer.name,
+      block: isActive ? currentBlock : null,
+      isYourTurn: isActive
+    });
   });
 
   clearTimeout(turnTimer);
-  turnTimer = setTimeout(() => {
-    skipTurn();
-  }, 60000);
+  turnTimer = setTimeout(() => timeoutPlayer(), 60000);
 }
 
-function skipTurn() {
+function timeoutPlayer() {
   if (players.length === 0) return;
 
-  currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
-  io.emit('message', 'Turn skipped due to timeout');
-  startNewTurn();
+  const timedOutPlayer = players[currentPlayerIndex];
+  console.log(`Player timed out: ${timedOutPlayer.name}`);
+
+  io.emit('message', `${timedOutPlayer.name} was removed due to inactivity.`);
+
+  // find and remove from socketPlayerMap
+  for (const [sid, playerIds] of socketPlayerMap.entries()) {
+    const idx = playerIds.indexOf(timedOutPlayer.id);
+    if (idx !== -1) {
+      playerIds.splice(idx, 1);
+      if (playerIds.length === 0) {
+        socketPlayerMap.delete(sid);
+      }
+      break;
+    }
+  }
+
+  removePlayer(timedOutPlayer.id);
 }
 
-function handlePlacement(socketId, index, block) {
+function handlePlacement(playerId, index) {
   const currentPlayer = players[currentPlayerIndex];
   if (!currentPlayer) return;
-
-  // 检查当前玩家是否属于这个socket
-  if (!currentPlayer.id.startsWith(socketId)) return;
-
+  if (currentPlayer.id !== playerId) return;
   if (grid[index] != null) return;
+  if (!currentBlock) return;
 
   clearTimeout(turnTimer);
 
-  grid[index] = block;
+  grid[index] = currentBlock;
 
-  let pointsEarned = checkGameRules(index);
+  const pointsEarned = checkGameRules(index);
   if (pointsEarned > 0) {
     scores[currentPlayer.id].score += pointsEarned;
   }
@@ -203,41 +241,37 @@ function handlePlacement(socketId, index, block) {
   startNewTurn();
 }
 
-function checkGameRules(lastPos) {
-  let earned = 0;
-  let blocksToRemove = new Set();
+// ─── game rules ──────────────────────────────────────────────────────
 
+function checkGameRules(lastPos) {
+  // jackpot: board is full
   const isFull = grid.every(cell => cell != null);
   if (isFull) {
     grid.fill(null);
     initPool();
+    io.emit('gridUpdate', grid);
     return 16;
   }
 
+  const blocksToRemove = new Set();
   const row = Math.floor(lastPos / 4);
   const col = lastPos % 4;
   const target = grid[lastPos];
 
-  // 检查横向（同一行）
+  // check horizontal (same row)
   checkLine(row * 4, 1, 4, target, blocksToRemove);
-
-  // 检查纵向（同一列）
+  // check vertical (same column)
   checkLine(col, 4, 4, target, blocksToRemove);
+  // check main diagonal (top-left to bottom-right)
+  if (row === col) checkLine(0, 5, 4, target, blocksToRemove);
+  // check anti-diagonal (top-right to bottom-left)
+  if (row + col === 3) checkLine(3, 3, 4, target, blocksToRemove);
 
-  // 检查主对角线（左上到右下）
-  if (row === col) {
-    checkLine(0, 5, 4, target, blocksToRemove);
-  }
-
-  // 检查副对角线（右上到左下）
-  if (row + col === 3) {
-    checkLine(3, 3, 4, target, blocksToRemove);
-  }
-
+  let earned = 0;
   blocksToRemove.forEach(idx => {
     pool.push(grid[idx]);
     grid[idx] = null;
-    earned += 1;
+    earned++;
   });
 
   return earned;
@@ -264,11 +298,11 @@ function checkLine(start, step, count, target, blocksToRemove) {
         sameShape = [];
       }
 
-      if (sameColor.length === 4) {
+      // trigger on 3 or more consecutive matches
+      if (sameColor.length >= 3) {
         sameColor.forEach(i => blocksToRemove.add(i));
       }
-
-      if (sameShape.length === 4) {
+      if (sameShape.length >= 3) {
         sameShape.forEach(i => blocksToRemove.add(i));
       }
     } else {
@@ -278,16 +312,9 @@ function checkLine(start, step, count, target, blocksToRemove) {
   }
 }
 
-function resetGame() {
-  grid.fill(null);
-  initPool();
-  currentPlayerIndex = 0;
-  gameStarted = false;
-}
+// ─── start server ────────────────────────────────────────────────────
 
-
-// 启动
 const PORT = 8080;
 server.listen(PORT, () => {
-  console.log(`服务器运行在 http://localhost:${PORT}`);
+  console.log(`Server running at http://localhost:${PORT}`);
 });
