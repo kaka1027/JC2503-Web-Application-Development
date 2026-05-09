@@ -347,6 +347,24 @@ input::placeholder {
   min-width: 360px;
 }
 
+#currentBlock {
+  font-size: 18px;
+  margin: 0 0 20px 0;
+  padding: 20px;
+  border: 2px dashed var(--accent-primary);
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-speed) ease;
+  animation: pulse 2s ease-in-out infinite;
+  max-width: 392px;
+  width: 100%;
+}
+
+#currentBlock:empty {
+  display: none;
+}
+
 /* ========================================
    Game Grid
    ======================================== */
@@ -415,25 +433,6 @@ input::placeholder {
   transform: scale(1.1) rotate(5deg);
 }
 
-/* ========================================
-   Current Block Display
-   ======================================== */
-#currentBlock {
-  font-size: 18px;
-  margin: 20px 0;
-  padding: 20px;
-  border: 2px dashed var(--accent-primary);
-  background: var(--bg-secondary);
-  border-radius: 12px;
-  box-shadow: var(--shadow-sm);
-  transition: all var(--transition-speed) ease;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-#currentBlock:empty {
-  display: none;
-}
-
 #currentBlock p {
   margin-bottom: 12px;
   font-weight: 600;
@@ -443,6 +442,9 @@ input::placeholder {
 #currentBlock .grid-cell {
   margin: 0 auto;
   animation: bounce 1s ease infinite;
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 /* ========================================

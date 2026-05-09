@@ -87,6 +87,18 @@ io.on('connection', (socket) => {
 
   socket.on('join', (data) => {
     const playerName = data.name || `Player_${nextPlayerId}`;
+
+    console.log(`Join attempt: "${playerName}"`);
+    console.log('Current players:', players.map(p => p.name));
+
+    // Check if name already exists in active players
+    const nameExists = players.some(p => p.name === playerName);
+    if (nameExists) {
+      console.log(`Join rejected: Name "${playerName}" already exists`);
+      socket.emit('joinError', { message: 'This name is already taken. Please choose a different name.' });
+      return;
+    }
+
     const playerId = `player_${nextPlayerId++}`;
 
     // track which socket owns this player
@@ -221,7 +233,16 @@ function handlePlacement(playerId, index) {
   const currentPlayer = players[currentPlayerIndex];
   if (!currentPlayer) return;
   if (currentPlayer.id !== playerId) return;
-  if (grid[index] != null) return;
+
+  if (grid[index] != null) {
+    // Send error message to the player who tried to place in occupied cell
+    const socket = io.sockets.sockets.get(currentPlayer.socketId);
+    if (socket) {
+      socket.emit('placementError', { message: 'This cell is already occupied! Please choose an empty cell.' });
+    }
+    return;
+  }
+
   if (!currentBlock) return;
 
   clearTimeout(turnTimer);

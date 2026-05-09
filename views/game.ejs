@@ -34,8 +34,8 @@
 
             <div id="game-container">
                 <div id="game-main">
-                    <div id="gameGrid"></div>
                     <div id="currentBlock"></div>
+                    <div id="gameGrid"></div>
                 </div>
                 <div id="scoreboard">
                     <h3>Scoreboard</h3>
@@ -122,7 +122,7 @@
             function quitGame() {
                 if (myPlayers.length === 0) return alert('You have not joined any players.');
 
-                const playerList = myPlayers.map((p, i) => `${i + 1}. ${p.playerName} (${p.playerId})`).join('\n');
+                const playerList = myPlayers.map((p, i) => `${i + 1}. ${p.playerName}`).join('\n');
                 const choice = prompt(`Select player to quit:\n${playerList}\n${myPlayers.length + 1}. Quit All\n\nEnter number:`);
                 const index = parseInt(choice) - 1;
 
@@ -231,7 +231,21 @@
             socket.on('joinSuccess', (data) => {
                 myPlayers.push({ playerId: data.playerId, playerName: data.playerName });
                 document.getElementById('quitBtn').classList.add('visible');
-                document.getElementById('message').innerText = `Welcome, ${data.playerName}! (${data.playerId})`;
+                document.getElementById('message').innerText = `Welcome, ${data.playerName}!`;
+            });
+
+            socket.on('joinError', (data) => {
+                console.log('Join error received:', data);
+                alert(data.message);
+            });
+
+            socket.on('placementError', (data) => {
+                alert(data.message);
+                clickLocked = false;
+                if (waitingTimeout) {
+                    clearTimeout(waitingTimeout);
+                    waitingTimeout = null;
+                }
             });
 
             socket.on('gridUpdate', (grid) => renderGrid(grid));
@@ -284,6 +298,15 @@
                 document.querySelectorAll('#score-tbody tr').forEach(row => {
                     row.classList.toggle('current-player', row.dataset.id === currentActiveId);
                 });
+
+                // If no players left at all, clear the game
+                if (Object.keys(scores).length === 0) {
+                    document.getElementById('currentTurn').innerText = '';
+                    document.getElementById('currentBlock').innerHTML = '';
+                    document.getElementById('currentBlock').dataset.block = '';
+                    document.getElementById('message').innerText = 'No players in game. Join to start!';
+                    renderGrid(Array(16).fill(null));
+                }
             });
 
             socket.on('playLists', (playersList) => {
@@ -304,6 +327,15 @@
                         tbody.appendChild(row);
                     }
                 });
+
+                // If no players left at all, clear the game
+                if (playersList.length === 0) {
+                    document.getElementById('currentTurn').innerText = '';
+                    document.getElementById('currentBlock').innerHTML = '';
+                    document.getElementById('currentBlock').dataset.block = '';
+                    document.getElementById('message').innerText = 'No players in game. Join to start!';
+                    renderGrid(Array(16).fill(null));
+                }
             });
 
             socket.on('playerQuit', (data) => {
@@ -319,6 +351,13 @@
                     document.getElementById('currentTurn').innerText = '';
                     document.getElementById('currentBlock').innerHTML = '';
                     document.getElementById('currentBlock').dataset.block = '';
+                    document.getElementById('message').innerText = 'All players have left. Join to start a new game!';
+
+                    // Clear the grid
+                    renderGrid(Array(16).fill(null));
+
+                    // Clear scoreboard
+                    document.getElementById('score-tbody').innerHTML = '';
                 }
             });
 
