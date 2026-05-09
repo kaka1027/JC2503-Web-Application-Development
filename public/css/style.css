@@ -1,71 +1,690 @@
+/* ========================================
+   CSS Variables for Theme System
+   ======================================== */
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #e9ecef;
+  --text-primary: #1a1a1a;
+  --text-secondary: #6c757d;
+  --text-inverse: #ffffff;
+  --border-color: #dee2e6;
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --accent-primary: #4a90e2;
+  --accent-hover: #357abd;
+  --accent-active: #2868a8;
+  --success: #28a745;
+  --warning: #ffc107;
+  --danger: #dc3545;
+  --nav-bg: #1a1a1a;
+  --grid-cell-bg: #ffffff;
+  --grid-cell-border: #dee2e6;
+  --scoreboard-bg: #f8f9fa;
+  --scoreboard-border: #dee2e6;
+  --current-player-bg: #fff3cd;
+  --transition-speed: 0.3s;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --bg-tertiary: #3a3a3a;
+  --text-primary: #e9ecef;
+  --text-secondary: #adb5bd;
+  --text-inverse: #1a1a1a;
+  --border-color: #495057;
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --accent-primary: #5ba3f5;
+  --accent-hover: #7ab8f7;
+  --accent-active: #3d8ee8;
+  --success: #48c774;
+  --warning: #ffd83d;
+  --danger: #f14668;
+  --nav-bg: #0d0d0d;
+  --grid-cell-bg: #2d2d2d;
+  --grid-cell-border: #495057;
+  --scoreboard-bg: #2d2d2d;
+  --scoreboard-border: #495057;
+  --current-player-bg: #4a4a2d;
+}
+
+/* ========================================
+   Global Styles
+   ======================================== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  transition: background var(--transition-speed) ease, color var(--transition-speed) ease;
+  min-height: 100vh;
+  padding-bottom: 40px;
+}
+
+/* ========================================
+   Navigation Bar
+   ======================================== */
 nav {
-  background: #222;
-  padding: 10px;
+  background: var(--nav-bg);
+  padding: 0;
+  box-shadow: var(--shadow-md);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  backdrop-filter: blur(10px);
 }
+
+nav .nav-container {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+}
+
+nav .nav-links {
+  display: flex;
+  gap: 8px;
+}
+
 nav a {
-  color: white;
-  margin: 0 10px;
+  color: #ffffff;
   text-decoration: none;
+  padding: 18px 24px;
+  display: inline-block;
+  font-weight: 500;
+  font-size: 15px;
+  letter-spacing: 0.3px;
+  position: relative;
+  transition: all var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 8px;
+  margin: 8px 0;
 }
+
+nav a::before {
+  content: '';
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%) scaleX(0);
+  width: 60%;
+  height: 2px;
+  background: var(--accent-primary);
+  transition: transform var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+nav a:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+nav a:hover::before {
+  transform: translateX(-50%) scaleX(1);
+}
+
+nav a:active {
+  transform: translateY(0);
+}
+
+/* Theme Toggle Button */
+.theme-toggle {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all var(--transition-speed) ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+}
+
+.theme-toggle:active {
+  transform: scale(0.98);
+}
+
+/* ========================================
+   Main Content Container
+   ======================================== */
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 40px 24px;
+}
+
+/* ========================================
+   Typography
+   ======================================== */
+h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 24px;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+  animation: fadeInUp 0.6s ease;
+}
+
+h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+}
+
+p {
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  animation: fadeInUp 0.6s ease;
+  animation-delay: 0.1s;
+  animation-fill-mode: both;
+}
+
+/* ========================================
+   Buttons
+   ======================================== */
+button, input[type="button"] {
+  background: var(--accent-primary);
+  color: var(--text-inverse);
+  border: none;
+  padding: 12px 28px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
+  letter-spacing: 0.3px;
+}
+
+button:hover {
+  background: var(--accent-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+button:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+#quitBtn {
+  background: var(--danger);
+  margin-left: 12px;
+}
+
+#quitBtn:hover {
+  background: #c82333;
+}
+
+/* ========================================
+   Input Fields
+   ======================================== */
+input[type="text"], input[type="email"], input[type="password"], input {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 15px;
+  transition: all var(--transition-speed) ease;
+  width: 100%;
+  max-width: 400px;
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+  transform: translateY(-1px);
+}
+
+input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+/* ========================================
+   Join Area
+   ======================================== */
+#join-area {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 24px 0;
+  flex-wrap: wrap;
+  animation: fadeInUp 0.6s ease;
+  animation-delay: 0.2s;
+  animation-fill-mode: both;
+}
+
+/* ========================================
+   Message Display
+   ======================================== */
+#message {
+  background: var(--bg-secondary);
+  padding: 16px 20px;
+  border-radius: 8px;
+  margin: 20px 0;
+  border-left: 4px solid var(--accent-primary);
+  color: var(--text-primary);
+  font-weight: 500;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-speed) ease;
+  animation: slideInLeft 0.5s ease;
+}
+
+#message:empty {
+  display: none;
+}
+
+/* ========================================
+   Current Turn Display
+   ======================================== */
+#currentTurn {
+  color: var(--accent-primary);
+  font-weight: 700;
+  font-size: 1.1rem;
+  transition: color var(--transition-speed) ease;
+}
+
+#currentTurn.your-turn {
+  color: var(--danger);
+}
+
+#quitBtn {
+  display: none;
+}
+
+#quitBtn.visible {
+  display: inline-block;
+}
+
+/* ========================================
+   Game Container
+   ======================================== */
 #game-container {
   display: flex;
   align-items: flex-start;
-  gap: 30px;
-  margin-top: 10px;
+  justify-content: center;
+  gap: 40px;
+  margin-top: 32px;
+  animation: fadeIn 0.8s ease;
+  flex-wrap: wrap;
 }
+
 #game-main {
   flex: 1;
+  min-width: 360px;
 }
+
+/* ========================================
+   Game Grid
+   ======================================== */
 #gameGrid {
   display: grid;
-  grid-template-columns: repeat(4, 80px);
-  gap: 5px;
-  margin: 20px 0;
+  grid-template-columns: repeat(4, 90px);
+  gap: 8px;
+  margin: 24px 0;
+  padding: 20px;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  width: fit-content;
 }
+
 .grid-cell {
-  width: 80px;
-  height: 80px;
-  border: 1px solid #333;
+  width: 90px;
+  height: 90px;
+  border: 2px solid var(--grid-cell-border);
+  background: var(--grid-cell-bg);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
 }
+
+.grid-cell::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(74, 144, 226, 0.1);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s ease, height 0.6s ease;
+}
+
+.grid-cell:hover {
+  border-color: var(--accent-primary);
+  transform: scale(1.05);
+  box-shadow: var(--shadow-md);
+}
+
+.grid-cell:hover::before {
+  width: 200%;
+  height: 200%;
+}
+
+.grid-cell:active {
+  transform: scale(0.95);
+}
+
+.grid-cell svg {
+  transition: transform var(--transition-speed) ease;
+  pointer-events: none;
+}
+
+.grid-cell:hover svg {
+  transform: scale(1.1) rotate(5deg);
+}
+
+/* ========================================
+   Current Block Display
+   ======================================== */
 #currentBlock {
-  font-size: 20px;
-  margin: 10px 0;
-  padding: 10px;
-  border: 1px solid red;
+  font-size: 18px;
+  margin: 20px 0;
+  padding: 20px;
+  border: 2px dashed var(--accent-primary);
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-speed) ease;
+  animation: pulse 2s ease-in-out infinite;
 }
+
+#currentBlock:empty {
+  display: none;
+}
+
+#currentBlock p {
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+#currentBlock .grid-cell {
+  margin: 0 auto;
+  animation: bounce 1s ease infinite;
+}
+
+/* ========================================
+   Scoreboard
+   ======================================== */
 #scoreboard {
-  min-width: 200px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  padding: 10px 16px;
-  background: #fafafa;
+  min-width: 280px;
+  max-width: 350px;
+  border: 2px solid var(--scoreboard-border);
+  border-radius: 12px;
+  padding: 20px 24px;
+  background: var(--scoreboard-bg);
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-speed) ease;
+  animation: fadeInRight 0.8s ease;
 }
+
+#scoreboard:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-4px);
+}
+
 #scoreboard h3 {
-  margin: 0 0 10px 0;
-  font-size: 16px;
-  border-bottom: 1px solid #ddd;
-  padding-bottom: 6px;
+  margin: 0 0 16px 0;
+  font-size: 1.25rem;
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 12px;
+  color: var(--text-primary);
+  font-weight: 700;
 }
+
 #score-table {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
+  border-collapse: separate;
+  border-spacing: 0 6px;
+  font-size: 15px;
 }
+
 #score-table th {
   text-align: left;
-  padding: 4px 8px;
-  background: #eee;
-  border-bottom: 1px solid #ccc;
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border: none;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
+
+#score-table th:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+#score-table th:last-child {
+  border-radius: 0 8px 8px 0;
+}
+
 #score-table td {
-  padding: 4px 8px;
-  border-bottom: 1px solid #eee;
+  padding: 12px;
+  border: none;
+  background: var(--bg-primary);
+  transition: all var(--transition-speed) ease;
+  color: var(--text-primary);
 }
+
+#score-table tbody tr {
+  transition: all var(--transition-speed) ease;
+  border-radius: 8px;
+}
+
+#score-table tbody tr:hover td {
+  background: var(--bg-tertiary);
+  transform: translateX(4px);
+}
+
+#score-table tbody tr td:first-child {
+  border-radius: 8px 0 0 8px;
+  font-weight: 600;
+}
+
+#score-table tbody tr td:last-child {
+  border-radius: 0 8px 8px 0;
+  text-align: center;
+  font-weight: 700;
+  color: var(--accent-primary);
+}
+
 #score-table tr.current-player td {
-  font-weight: bold;
-  background: #fff3cd;
+  font-weight: 700;
+  background: var(--current-player-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+#score-table tr.current-player td:first-child::before {
+  content: '▶ ';
+  color: var(--accent-primary);
+}
+
+/* ========================================
+   Animations
+   ======================================== */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(74, 144, 226, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(74, 144, 226, 0);
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* ========================================
+   Responsive Design
+   ======================================== */
+@media (max-width: 768px) {
+  nav .nav-container {
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  nav .nav-links {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  nav a {
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+
+  h1 {
+    font-size: 2rem;
+  }
+
+  #game-container {
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  #gameGrid {
+    grid-template-columns: repeat(4, 70px);
+    gap: 6px;
+    padding: 16px;
+  }
+
+  .grid-cell {
+    width: 70px;
+    height: 70px;
+  }
+
+  #scoreboard {
+    max-width: 100%;
+  }
+
+  .container {
+    padding: 24px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  #gameGrid {
+    grid-template-columns: repeat(4, 60px);
+  }
+
+  .grid-cell {
+    width: 60px;
+    height: 60px;
+  }
+
+  button {
+    padding: 10px 20px;
+    font-size: 14px;
+  }
+
+  input {
+    font-size: 14px;
+  }
+}
+
+/* ========================================
+   Accessibility
+   ======================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus visible for keyboard navigation */
+*:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }

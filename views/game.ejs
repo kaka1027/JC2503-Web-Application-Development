@@ -1,39 +1,51 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
     <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Game</title>
         <link rel="stylesheet" href="/css/style.css">
     </head>
     <body>
         <nav>
-            <a href="/">Home</a>
-            <a href="/about">About</a>
-            <a href="/game">Game</a>
+            <div class="nav-container">
+                <div class="nav-links">
+                    <a href="/">Home</a>
+                    <a href="/about">About</a>
+                    <a href="/game">Game</a>
+                </div>
+                <button class="theme-toggle" onclick="toggleTheme()">
+                    <span id="theme-icon">🌙</span>
+                    <span id="theme-text">Dark</span>
+                </button>
+            </div>
         </nav>
 
-        <h1>The 4×4 Puzzle Game</h1>
-        <div id="join-area">
-            <input id="nameInput" placeholder="Enter your name to join...">
-            <button onclick="joinGame()">Join the Game</button>
-        </div>
-        <button id="quitBtn" onclick="quitGame()" style="display:none;">Quit Game</button>
-
-        <h3>Current Turn: <span id="currentTurn"></span></h3>
-        <div id="message"></div>
-
-        <div id="game-container">
-            <div id="game-main">
-                <div id="gameGrid"></div>
-                <div id="currentBlock"></div>
+        <div class="container">
+            <h1>The 4×4 Puzzle Game</h1>
+            <div id="join-area">
+                <input id="nameInput" placeholder="Enter your name to join...">
+                <button onclick="joinGame()">Join the Game</button>
             </div>
-            <div id="scoreboard">
-                <h3>Scoreboard</h3>
-                <table id="score-table">
-                    <thead>
-                        <tr><th>Player</th><th>Score</th></tr>
-                    </thead>
-                    <tbody id="score-tbody"></tbody>
-                </table>
+            <button id="quitBtn" onclick="quitGame()">Quit Game</button>
+
+            <h3>Current Turn: <span id="currentTurn"></span></h3>
+            <div id="message"></div>
+
+            <div id="game-container">
+                <div id="game-main">
+                    <div id="gameGrid"></div>
+                    <div id="currentBlock"></div>
+                </div>
+                <div id="scoreboard">
+                    <h3>Scoreboard</h3>
+                    <table id="score-table">
+                        <thead>
+                            <tr><th>Player</th><th>Score</th></tr>
+                        </thead>
+                        <tbody id="score-tbody"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -41,11 +53,62 @@
 
         <script>
             const socket = io();
-            let myPlayers = []; // array of { playerId, playerName }
+            let myPlayers = [];
             let currentActiveId = null;
 
-            // ── join / quit ──────────────────────────────────────────
+            // Theme management
+            function getSystemTheme() {
+                return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
 
+            function applyTheme(theme) {
+                if (theme === 'system') {
+                    theme = getSystemTheme();
+                }
+                document.documentElement.setAttribute('data-theme', theme);
+
+                const icon = document.getElementById('theme-icon');
+                const text = document.getElementById('theme-text');
+
+                if (theme === 'dark') {
+                    icon.textContent = '☀️';
+                    text.textContent = 'Light';
+                } else {
+                    icon.textContent = '🌙';
+                    text.textContent = 'Dark';
+                }
+            }
+
+            function toggleTheme() {
+                const currentTheme = localStorage.getItem('theme') || 'system';
+                let newTheme;
+
+                if (currentTheme === 'light') {
+                    newTheme = 'dark';
+                } else if (currentTheme === 'dark') {
+                    newTheme = 'system';
+                } else {
+                    newTheme = 'light';
+                }
+
+                localStorage.setItem('theme', newTheme);
+                applyTheme(newTheme);
+
+                if (newTheme === 'system') {
+                    document.getElementById('theme-text').textContent = 'System';
+                }
+            }
+
+            const savedTheme = localStorage.getItem('theme') || 'system';
+            applyTheme(savedTheme);
+
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+                if (localStorage.getItem('theme') === 'system') {
+                    applyTheme('system');
+                }
+            });
+
+            // Join / Quit
             function joinGame() {
                 const playerName = document.getElementById('nameInput').value.trim();
                 if (!playerName) return alert('Please enter a name.');
@@ -56,13 +119,11 @@
             function quitGame() {
                 if (myPlayers.length === 0) return alert('You have not joined any players.');
 
-                // show list of players to quit
                 const playerList = myPlayers.map((p, i) => `${i + 1}. ${p.playerName} (${p.playerId})`).join('\n');
                 const choice = prompt(`Select player to quit:\n${playerList}\n${myPlayers.length + 1}. Quit All\n\nEnter number:`);
                 const index = parseInt(choice) - 1;
 
                 if (index === myPlayers.length) {
-                    // quit all players
                     myPlayers.forEach(player => {
                         socket.emit('quitGame', { playerId: player.playerId });
                     });
@@ -72,8 +133,7 @@
                 }
             }
 
-            // ── shape rendering ──────────────────────────────────────
-
+            // Shape rendering
             function createShapeSVG(shape, color) {
                 const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
                 svg.setAttribute('width', '50');
@@ -102,8 +162,7 @@
                 return svg;
             }
 
-            // ── grid rendering ───────────────────────────────────────
-
+            // Grid rendering
             function renderGrid(grid) {
                 const container = document.getElementById('gameGrid');
                 container.innerHTML = '';
@@ -121,9 +180,8 @@
                         const blockData = document.getElementById('currentBlock').dataset.block;
                         if (!blockData) return;
 
-                        // find which of my players is the current turn
                         const myActivePlayer = myPlayers.find(p => p.playerId === currentActiveId);
-                        if (!myActivePlayer) return; // not my turn
+                        if (!myActivePlayer) return;
 
                         socket.emit('placeBlock', { playerId: myActivePlayer.playerId, index: i });
                         document.getElementById('currentBlock').innerHTML = '';
@@ -133,8 +191,7 @@
                 }
             }
 
-            // ── scoreboard ───────────────────────────────────────────
-
+            // Scoreboard
             function updateScoreboard(scores) {
                 const tbody = document.getElementById('score-tbody');
                 const existingRows = {};
@@ -160,18 +217,17 @@
                 }
             }
 
-            // ── socket events ────────────────────────────────────────
-
+            // Socket events
             socket.on('joinSuccess', (data) => {
                 myPlayers.push({ playerId: data.playerId, playerName: data.playerName });
-                document.getElementById('quitBtn').style.display = 'inline-block';
+                document.getElementById('quitBtn').classList.add('visible');
                 document.getElementById('message').innerText = `Welcome, ${data.playerName}! (${data.playerId})`;
             });
 
             socket.on('gridUpdate', (grid) => renderGrid(grid));
 
             socket.on('gameStarted', () => {
-                // game is always live — nothing extra needed
+                // game is always live
             });
 
             socket.on('newTurn', (data) => {
@@ -185,7 +241,7 @@
 
                 if (data.isYourTurn) {
                     turnDisplay.innerText = `It's your turn, ${data.activePlayerName}`;
-                    turnDisplay.style.color = 'red';
+                    turnDisplay.classList.add('your-turn');
 
                     blockDisplay.dataset.block = JSON.stringify(data.block);
                     blockDisplay.innerHTML = '<p>Place this:</p>';
@@ -196,7 +252,7 @@
                     blockDisplay.appendChild(preview);
                 } else {
                     turnDisplay.innerText = `${data.activePlayerName}'s Turn`;
-                    turnDisplay.style.color = 'black';
+                    turnDisplay.classList.remove('your-turn');
                     blockDisplay.innerHTML = '';
                     blockDisplay.dataset.block = '';
                 }
@@ -217,12 +273,10 @@
                 const tbody = document.getElementById('score-tbody');
                 const existingIds = new Set(playersList.map(p => p.id));
 
-                // remove rows for players who left
                 tbody.querySelectorAll('tr').forEach(row => {
                     if (!existingIds.has(row.dataset.id)) row.remove();
                 });
 
-                // add rows for new players (score will be filled by scoreUpdate)
                 const existingRows = new Set([...tbody.querySelectorAll('tr')].map(r => r.dataset.id));
                 playersList.forEach(player => {
                     if (!existingRows.has(player.id)) {
@@ -244,7 +298,7 @@
                 }
 
                 if (myPlayers.length === 0) {
-                    document.getElementById('quitBtn').style.display = 'none';
+                    document.getElementById('quitBtn').classList.remove('visible');
                     document.getElementById('currentTurn').innerText = '';
                     document.getElementById('currentBlock').innerHTML = '';
                     document.getElementById('currentBlock').dataset.block = '';

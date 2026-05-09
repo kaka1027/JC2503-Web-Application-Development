@@ -1,21 +1,87 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
     <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Introduction</title>
         <link rel="stylesheet" href="/css/style.css">
     </head>
     <body>
         <nav>
-            <a href="/">Home</a>
-            <a href="/about">About</a>
-            <a href="/game">Game</a>
+            <div class="nav-container">
+                <div class="nav-links">
+                    <a href="/">Home</a>
+                    <a href="/about">About</a>
+                    <a href="/game">Game</a>
+                </div>
+                <button class="theme-toggle" onclick="toggleTheme()">
+                    <span id="theme-icon">🌙</span>
+                    <span id="theme-text">Dark</span>
+                </button>
+            </div>
         </nav>
 
-        <h1>My Introduction</h1>
-        <p>Name: YUCHEN HUANG </p>
-        <p>Study: Web Application Development</p>
-        <p>This is my JC2503 assignment.</p>
+        <div class="container">
+            <h1>My Introduction</h1>
+            <p>Name: YUCHEN HUANG</p>
+            <p>Study: Web Application Development</p>
+            <p>This is my JC2503 assignment.</p>
+        </div>
 
+        <script>
+            // Theme management
+            function getSystemTheme() {
+                return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
 
+            function applyTheme(theme) {
+                if (theme === 'system') {
+                    theme = getSystemTheme();
+                }
+                document.documentElement.setAttribute('data-theme', theme);
+
+                const icon = document.getElementById('theme-icon');
+                const text = document.getElementById('theme-text');
+
+                if (theme === 'dark') {
+                    icon.textContent = '☀️';
+                    text.textContent = 'Light';
+                } else {
+                    icon.textContent = '🌙';
+                    text.textContent = 'Dark';
+                }
+            }
+
+            function toggleTheme() {
+                const currentTheme = localStorage.getItem('theme') || 'system';
+                let newTheme;
+
+                if (currentTheme === 'light') {
+                    newTheme = 'dark';
+                } else if (currentTheme === 'dark') {
+                    newTheme = 'system';
+                } else {
+                    newTheme = 'light';
+                }
+
+                localStorage.setItem('theme', newTheme);
+                applyTheme(newTheme);
+
+                if (newTheme === 'system') {
+                    document.getElementById('theme-text').textContent = 'System';
+                }
+            }
+
+            // Initialize theme on page load
+            const savedTheme = localStorage.getItem('theme') || 'system';
+            applyTheme(savedTheme);
+
+            // Listen for system theme changes
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+                if (localStorage.getItem('theme') === 'system') {
+                    applyTheme('system');
+                }
+            });
+        </script>
     </body>
 </html>
