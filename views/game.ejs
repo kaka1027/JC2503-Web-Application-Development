@@ -55,6 +55,9 @@
             const socket = io();
             let myPlayers = [];
             let currentActiveId = null;
+            let clickLocked = false;
+            let waitingTimeout = null;
+            const WAIT_TIMEOUT = 3000;
 
             // Theme management
             function getSystemTheme() {
@@ -177,15 +180,22 @@
                     }
 
                     cell.onclick = () => {
+                        if (clickLocked) return;
+
                         const blockData = document.getElementById('currentBlock').dataset.block;
                         if (!blockData) return;
 
                         const myActivePlayer = myPlayers.find(p => p.playerId === currentActiveId);
                         if (!myActivePlayer) return;
 
+                        clickLocked = true;
+
                         socket.emit('placeBlock', { playerId: myActivePlayer.playerId, index: i });
-                        document.getElementById('currentBlock').innerHTML = '';
-                        document.getElementById('currentBlock').dataset.block = '';
+
+                        waitingTimeout = setTimeout(() => {
+                            alert('Server is not responding. Click OK to retry.');
+                            clickLocked = false;
+                        }, WAIT_TIMEOUT);
                     };
                     container.appendChild(cell);
                 }
@@ -256,6 +266,13 @@
                     blockDisplay.innerHTML = '';
                     blockDisplay.dataset.block = '';
                 }
+
+                if(waitingTimeout){
+                    clearTimeout(waitingTimeout);
+                    waitingTimeout = null;
+                }
+
+                clickLocked = false;
             });
 
             socket.on('message', (msg) => {
