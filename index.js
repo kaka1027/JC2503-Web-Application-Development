@@ -85,6 +85,17 @@ function removePlayer(playerId) {
 io.on('connection', (socket) => {
   console.log('Socket connected:', socket.id);
 
+  socket.on('checkName', (data, callback) => {
+    const playerName = data.name;
+    const nameExists = players.some(p => p.name === playerName);
+
+    if (nameExists) {
+      callback({ available: false, message: 'This name is already taken. Please choose a different name.' });
+    } else {
+      callback({ available: true });
+    }
+  });
+
   socket.on('join', (data) => {
     const playerName = data.name || `Player_${nextPlayerId}`;
 
@@ -258,9 +269,18 @@ function handlePlacement(playerId, index) {
 
   grid[index] = currentBlock;
 
-  const pointsEarned = checkGameRules(index);
-  if (pointsEarned > 0) {
-    scores[currentPlayer.id].score += pointsEarned;
+  const matchResult = checkGameRules(index);
+  if (matchResult.pointsEarned > 0) {
+    scores[currentPlayer.id].score += matchResult.pointsEarned;
+
+    // Send match animation data
+    io.emit('matchSuccess', {
+      matchedCells: matchResult.matchedCells,
+      pointsEarned: matchResult.pointsEarned,
+      playerId: currentPlayer.id,
+      playerName: currentPlayer.name,
+      isJackpot: matchResult.isJackpot
+    });
   }
 
   currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
@@ -277,10 +297,11 @@ function checkGameRules(lastPos) {
   // jackpot: board is full
   const isFull = grid.every(cell => cell != null);
   if (isFull) {
+    const allCells = Array.from({length: 16}, (_, i) => i);
     grid.fill(null);
     initPool();
     io.emit('gridUpdate', grid);
-    return 16;
+    return { pointsEarned: 16, matchedCells: allCells, isJackpot: true };
   }
 
   const blocksToRemove = new Set();
@@ -298,13 +319,15 @@ function checkGameRules(lastPos) {
   if (row + col === 3) checkLine(3, 3, 4, target, blocksToRemove);
 
   let earned = 0;
+  const matchedCells = [];
   blocksToRemove.forEach(idx => {
     pool.push(grid[idx]);
     grid[idx] = null;
+    matchedCells.push(idx);
     earned++;
   });
 
-  return earned;
+  return { pointsEarned: earned, matchedCells, isJackpot: false };
 }
 
 function checkLine(start, step, count, target, blocksToRemove) {

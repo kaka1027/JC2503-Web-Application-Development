@@ -23,6 +23,11 @@
 
         <div class="container">
             <h1>The 4×4 Puzzle Game</h1>
+            <div style="font-size: 0.9em; color: #666; margin-top: -10px; margin-bottom: 20px; line-height: 1.6;">
+                <p style="margin: 5px 0;"><strong>How to Play:</strong> Take turns placing colored shapes on the 4×4 grid. Match 3 or more blocks with the same color OR shape in a row, column, or diagonal to score points and clear them from the board.</p>
+                <p style="margin: 5px 0;"><strong>Scoring:</strong> Each matched block = 1 point. Fill all 16 cells to earn a 16-point jackpot bonus!</p>
+                <p style="margin: 5px 0;"><strong>Shapes:</strong> Circle ⚪, Square ⬜, Triangle 🔺, Star ⭐ | <strong>Colors:</strong> Red 🔴, Blue 🔵, Yellow 🟡, Green 🟢</p>
+            </div>
             <div id="join-area">
                 <input id="nameInput" placeholder="Enter your name to join...">
                 <button onclick="joinGame()">Join the Game</button>
@@ -117,13 +122,19 @@
                 const playerName = document.getElementById('nameInput').value.trim();
                 if (!playerName) return alert('Please enter a name.');
 
-                // Open a new window for this player
-                const gameWindow = window.open(`/game?name=${encodeURIComponent(playerName)}`, '_blank', 'width=1200,height=800');
-                if (!gameWindow) {
-                    alert('Please allow pop-ups for this site to open the game window.');
-                }
-
-                document.getElementById('nameInput').value = '';
+                // Check if name is already taken before opening window
+                socket.emit('checkName', { name: playerName }, (response) => {
+                    if (response.available) {
+                        // Open a new window for this player
+                        const gameWindow = window.open(`/game?name=${encodeURIComponent(playerName)}`, '_blank', 'width=1200,height=800');
+                        if (!gameWindow) {
+                            alert('Please allow pop-ups for this site to open the game window.');
+                        }
+                        document.getElementById('nameInput').value = '';
+                    } else {
+                        alert(response.message);
+                    }
+                });
             }
 
             function quitGame() {
@@ -232,6 +243,12 @@
             socket.on('joinError', (data) => {
                 console.log('Join error received:', data);
                 alert(data.message);
+
+                // If this is a popup window (has name in URL), close it after showing error
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('name')) {
+                    window.close();
+                }
             });
 
             socket.on('placementError', (data) => {
@@ -286,6 +303,34 @@
 
             socket.on('message', (msg) => {
                 document.getElementById('message').innerText = msg;
+            });
+
+            socket.on('matchSuccess', (data) => {
+                // Highlight matched cells
+                const cellClass = data.isJackpot ? 'jackpot' : 'matched';
+                data.matchedCells.forEach(index => {
+                    const cell = document.querySelector(`.grid-cell[data-index="${index}"]`);
+                    if (cell) {
+                        cell.classList.add(cellClass);
+                        setTimeout(() => cell.classList.remove(cellClass), 600);
+                    }
+                });
+
+                // Show score popup
+                const popup = document.createElement('div');
+                popup.className = `score-popup${data.isJackpot ? ' jackpot' : ''}`;
+                popup.textContent = data.isJackpot
+                    ? `🎉 JACKPOT! +${data.pointsEarned} 🎉`
+                    : `+${data.pointsEarned}`;
+                document.body.appendChild(popup);
+                setTimeout(() => popup.remove(), 1500);
+
+                // Highlight scoring player in scoreboard
+                const scoringRow = document.querySelector(`#score-tbody tr[data-id="${data.playerId}"]`);
+                if (scoringRow) {
+                    scoringRow.classList.add('scoring');
+                    setTimeout(() => scoringRow.classList.remove('scoring'), 800);
+                }
             });
 
             socket.on('scoreUpdate', (scores) => {
@@ -362,11 +407,27 @@
                 const playerName = urlParams.get('name');
 
                 if (playerName) {
-                    // This is a game window, hide navigation links but keep join area
+                    // This is a game window, hide navigation links
                     document.querySelector('.nav-links').style.display = 'none';
-                    socket.emit('join', { name: playerName });
+                    document.getElementById('join-area').style.display = 'none';
                 }
             };
+
+            // Auto-join when socket connects (for popup windows with name in URL)
+            socket.on('connect', () => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const playerName = urlParams.get('name');
+
+                if (playerName) {
+                    // Wait a bit to ensure connection is stable, then join
+                    setTimeout(() => {
+                        socket.emit('join', { name: playerName });
+                    }, 100);
+                }
+            });
+
+            // Socket disconnect will automatically handle player removal on server side
+            // No need for beforeunload/visibilitychange as server's disconnect event handles it
         </script>
     </body>
 </html>
