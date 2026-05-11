@@ -53,7 +53,8 @@
 
         <script>
             const socket = io();
-            let myPlayers = [];
+            let myPlayerId = null;
+            let myPlayerName = null;
             let currentActiveId = null;
             let clickLocked = false;
             let waitingTimeout = null;
@@ -115,25 +116,19 @@
             function joinGame() {
                 const playerName = document.getElementById('nameInput').value.trim();
                 if (!playerName) return alert('Please enter a name.');
-                socket.emit('join', { name: playerName });
+
+                // Open a new window for this player
+                const gameWindow = window.open(`/game?name=${encodeURIComponent(playerName)}`, '_blank', 'width=1200,height=800');
+                if (!gameWindow) {
+                    alert('Please allow pop-ups for this site to open the game window.');
+                }
+
                 document.getElementById('nameInput').value = '';
             }
 
             function quitGame() {
-                if (myPlayers.length === 0) return alert('You have not joined any players.');
-
-                const playerList = myPlayers.map((p, i) => `${i + 1}. ${p.playerName}`).join('\n');
-                const choice = prompt(`Select player to quit:\n${playerList}\n${myPlayers.length + 1}. Quit All\n\nEnter number:`);
-                const index = parseInt(choice) - 1;
-
-                if (index === myPlayers.length) {
-                    myPlayers.forEach(player => {
-                        socket.emit('quitGame', { playerId: player.playerId });
-                    });
-                } else if (index >= 0 && index < myPlayers.length) {
-                    const player = myPlayers[index];
-                    socket.emit('quitGame', { playerId: player.playerId });
-                }
+                if (!myPlayerId) return alert('You have not joined the game.');
+                socket.emit('quitGame', {});
             }
 
             // Shape rendering
@@ -185,12 +180,11 @@
                         const blockData = document.getElementById('currentBlock').dataset.block;
                         if (!blockData) return;
 
-                        const myActivePlayer = myPlayers.find(p => p.playerId === currentActiveId);
-                        if (!myActivePlayer) return;
+                        if (!myPlayerId || myPlayerId !== currentActiveId) return;
 
                         clickLocked = true;
 
-                        socket.emit('placeBlock', { playerId: myActivePlayer.playerId, index: i });
+                        socket.emit('placeBlock', { playerId: myPlayerId, index: i });
 
                         waitingTimeout = setTimeout(() => {
                             alert('Server is not responding. Click OK to retry.');
@@ -229,7 +223,8 @@
 
             // Socket events
             socket.on('joinSuccess', (data) => {
-                myPlayers.push({ playerId: data.playerId, playerName: data.playerName });
+                myPlayerId = data.playerId;
+                myPlayerName = data.playerName;
                 document.getElementById('quitBtn').classList.add('visible');
                 document.getElementById('message').innerText = `Welcome, ${data.playerName}!`;
             });
@@ -339,29 +334,39 @@
             });
 
             socket.on('playerQuit', (data) => {
-                const idx = myPlayers.findIndex(p => p.playerId === data.playerId);
-                if (idx !== -1) {
-                    const player = myPlayers[idx];
-                    myPlayers.splice(idx, 1);
-                    document.getElementById('message').innerText = `${player.playerName} has left the game.`;
-                }
-
-                if (myPlayers.length === 0) {
+                if (data.playerId === myPlayerId) {
+                    myPlayerId = null;
+                    myPlayerName = null;
                     document.getElementById('quitBtn').classList.remove('visible');
                     document.getElementById('currentTurn').innerText = '';
                     document.getElementById('currentBlock').innerHTML = '';
                     document.getElementById('currentBlock').dataset.block = '';
-                    document.getElementById('message').innerText = 'All players have left. Join to start a new game!';
+                    document.getElementById('message').innerText = 'You have left the game. Join to play again!';
 
                     // Clear the grid
                     renderGrid(Array(16).fill(null));
 
                     // Clear scoreboard
                     document.getElementById('score-tbody').innerHTML = '';
+                } else {
+                    // Another player quit, show message
+                    document.getElementById('message').innerText = data.message || 'A player has left the game.';
                 }
             });
 
-            window.onload = () => renderGrid(Array(16).fill(null));
+            // Auto-join if name is in URL
+            window.onload = () => {
+                renderGrid(Array(16).fill(null));
+
+                const urlParams = new URLSearchParams(window.location.search);
+                const playerName = urlParams.get('name');
+
+                if (playerName) {
+                    // This is a game window, hide navigation links but keep join area
+                    document.querySelector('.nav-links').style.display = 'none';
+                    socket.emit('join', { name: playerName });
+                }
+            };
         </script>
     </body>
 </html>

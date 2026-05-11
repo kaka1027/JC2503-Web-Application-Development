@@ -15,7 +15,7 @@ app.get('/about', (req, res) => res.render('about'));
 app.get('/game', (req, res) => res.render('game'));
 app.get('/report.html', (req, res) => res.sendFile(path.join(__dirname, 'report.html')));
 
-// socketId -> [playerId1, playerId2, ...]
+// socketId -> playerId (one-to-one mapping)
 const socketPlayerMap = new Map();
 
 let players = [];
@@ -91,6 +91,13 @@ io.on('connection', (socket) => {
     console.log(`Join attempt: "${playerName}"`);
     console.log('Current players:', players.map(p => p.name));
 
+    // Check if this socket already has a player
+    if (socketPlayerMap.has(socket.id)) {
+      console.log(`Join rejected: Socket ${socket.id} already has a player`);
+      socket.emit('joinError', { message: 'You have already joined the game in this window.' });
+      return;
+    }
+
     // Check if name already exists in active players
     const nameExists = players.some(p => p.name === playerName);
     if (nameExists) {
@@ -101,11 +108,8 @@ io.on('connection', (socket) => {
 
     const playerId = `player_${nextPlayerId++}`;
 
-    // track which socket owns this player
-    if (!socketPlayerMap.has(socket.id)) {
-      socketPlayerMap.set(socket.id, []);
-    }
-    socketPlayerMap.get(socket.id).push(playerId);
+    // track which socket owns this player (one-to-one)
+    socketPlayerMap.set(socket.id, playerId);
 
     players.push({ id: playerId, name: playerName, socketId: socket.id });
     scores[playerId] = { name: playerName, score: 0 };
@@ -143,35 +147,44 @@ io.on('connection', (socket) => {
   });
 
   socket.on('quitGame', (data) => {
-    const playerId = data.playerId;
+    const playerId = socketPlayerMap.get(socket.id);
     if (!playerId) return;
 
-    const playerIds = socketPlayerMap.get(socket.id);
-    if (!playerIds || !playerIds.includes(playerId)) return;
+    const player = players.find(p => p.id === playerId);
+    const playerName = player ? player.name : 'A player';
 
-    // remove from socket's player list
-    const idx = playerIds.indexOf(playerId);
-    playerIds.splice(idx, 1);
-    if (playerIds.length === 0) {
-      socketPlayerMap.delete(socket.id);
-    }
-
+    socketPlayerMap.delete(socket.id);
     removePlayer(playerId);
+
+    // Tell the quitting player they quit
     socket.emit('playerQuit', { playerId });
+
+    // Tell all other players someone quit
+    socket.broadcast.emit('playerQuit', {
+      playerId,
+      message: `${playerName} has left the game.`
+    });
+
     console.log(`Player quit: ${playerId}`);
   });
 
   socket.on('disconnect', () => {
-    const playerIds = socketPlayerMap.get(socket.id);
-    if (!playerIds) return;
+    const playerId = socketPlayerMap.get(socket.id);
+    if (!playerId) return;
+
+    const player = players.find(p => p.id === playerId);
+    const playerName = player ? player.name : 'A player';
 
     socketPlayerMap.delete(socket.id);
+    removePlayer(playerId);
 
-    // remove all players owned by this socket
-    playerIds.forEach(playerId => {
-      removePlayer(playerId);
-      console.log(`Player disconnected: ${playerId}`);
+    // Tell all other players someone disconnected
+    socket.broadcast.emit('playerQuit', {
+      playerId,
+      message: `${playerName} has disconnected.`
     });
+
+    console.log(`Player disconnected: ${playerId}`);
   });
 });
 
@@ -215,13 +228,9 @@ function timeoutPlayer() {
   io.emit('message', `${timedOutPlayer.name} was removed due to inactivity.`);
 
   // find and remove from socketPlayerMap
-  for (const [sid, playerIds] of socketPlayerMap.entries()) {
-    const idx = playerIds.indexOf(timedOutPlayer.id);
-    if (idx !== -1) {
-      playerIds.splice(idx, 1);
-      if (playerIds.length === 0) {
-        socketPlayerMap.delete(sid);
-      }
+  for (const [sid, playerId] of socketPlayerMap.entries()) {
+    if (playerId === timedOutPlayer.id) {
+      socketPlayerMap.delete(sid);
       break;
     }
   }
